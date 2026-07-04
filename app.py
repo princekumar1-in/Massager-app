@@ -16,6 +16,7 @@ st.markdown("""
     }
     .stApp { margin-top: -60px !important; }
     
+    /* Responsive Row Lock Logic */
     div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
@@ -31,6 +32,15 @@ st.markdown("""
         padding: 5px 2px !important;
         font-size: 0.85em !important;
         white-space: nowrap !important;
+    }
+    
+    /* WhatsApp Chat List Item Styles */
+    .chat-list-btn {
+        width: 100%;
+        text-align: left !important;
+        padding: 12px !important;
+        border-radius: 8px !important;
+        margin-bottom: 5px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -48,6 +58,7 @@ components.html("""
 # --- INITIAL SYSTEM SESSION STATE ---
 if "user_logged" not in st.session_state: st.session_state["user_logged"] = False
 if "my_number" not in st.session_state: st.session_state["my_number"] = ""
+if "my_username" not in st.session_state: st.session_state["my_username"] = ""
 if "active_chat_with" not in st.session_state: st.session_state["active_chat_with"] = ""
 
 # --- DATABASE CONNECTION ---
@@ -77,22 +88,41 @@ def upload_media_to_chat(file_obj, file_name):
         st.error(f"Media Upload Error: {e}")
         return None
 
+# Mapping dictionary helpers to instantly swap numbers for names
+@st.cache_data(ttl=5)
+def get_user_map():
+    try:
+        res = supabase.table("chat_users").select("mobile_number, username").execute()
+        if res.data:
+            return {row["mobile_number"]: row["username"] for row in res.data}
+    except Exception:
+        pass
+    return {}
+
+user_map = get_user_map()
+
 # =======================================================================================
-# 1. GATEWAY: REGISTRATION & LOGIN PORTAL
+# 1. GATEWAY: REGISTRATION & LOGIN PORTAL (WITH USERNAME ENGINE)
 # =======================================================================================
 if not st.session_state["user_logged"]:
-    st.title("🔒 PRINCE STUDIO SECURED MESSENGER")
+    st.title("🔒 SECURED MESSENGER NETWORK")
     st.markdown("---")
     
     auth_mode = st.radio("Choose Action Protocol:", ["🔑 Login Account", "📝 Register New Number"], horizontal=True)
     
     num_input = st.text_input("Enter Mobile Number (10 Digits):", max_chars=10).strip()
-    pass_input = st.text_input("Enter Password Secure Block:", type="password")
+    
+    if auth_mode == "📝 Register New Number":
+        name_input = st.text_input("Enter Your Name (Username):", placeholder="e.g., Prakash Sir").strip()
+        
+    pass_input = st.text_input("Enter Password:", type="password")
     
     if auth_mode == "📝 Register New Number":
         if st.button("CREATE MY MESSENGER ACCOUNT", use_container_width=True, type="primary"):
             if len(num_input) < 10 or not num_input.isdigit():
                 st.error("Please enter a valid 10-digit mobile number!")
+            elif not name_input:
+                st.error("Username display name field required!")
             elif not pass_input:
                 st.error("Password string required!")
             else:
@@ -102,6 +132,7 @@ if not st.session_state["user_logged"]:
                 else:
                     payload = {
                         "mobile_number": num_input,
+                        "username": name_input,
                         "password": pass_input,
                         "registered_at": get_ist_live_time()
                     }
@@ -117,76 +148,106 @@ if not st.session_state["user_logged"]:
                 if user_res.data:
                     st.session_state["user_logged"] = True
                     st.session_state["my_number"] = num_input
-                    st.toast(f"Connected as {num_input}")
+                    st.session_state["my_username"] = user_res.data[0].get("username", num_input)
+                    st.toast(f"Welcome back, {st.session_state['my_username']}!")
                     st.rerun()
                 else:
                     st.error("❌ Invalid Mobile Number or Password combination!")
     st.stop()
 
 # =======================================================================================
-# 2. MAIN HUB: CHAT INTERFACE WINDOW
+# 2. MAIN HUB: PRO-LEVEL COMPACT PROFILE MANAGEMENT LAYOUT
 # =======================================================================================
-header_l, header_r = st.columns([8, 2])
-with header_l:
-    st.subheader(f"🟢 User Session Live: {st.session_state['my_number']}")
-with header_r:
-    if st.button("🔒 LOGOUT NETWORK", use_container_width=True):
-        st.session_state["user_logged"] = False
-        st.session_state["my_number"] = ""
-        st.session_state["active_chat_with"] = ""
-        st.rerun()
+with st.expander(f"👤 Profile Settings ({st.session_state['my_username']})", expanded=False):
+    col_prof_info, col_prof_btn = st.columns([8, 2])
+    with col_prof_info:
+        st.markdown(f"**Linked Number:** `{st.session_state['my_number']}`")
+    with col_prof_btn:
+        if st.button("🔒 LOGOUT NETWORK", use_container_width=True, type="primary"):
+            st.session_state["user_logged"] = False
+            st.session_state["my_number"] = ""
+            st.session_state["my_username"] = ""
+            st.session_state["active_chat_with"] = ""
+            st.rerun()
 
-st.markdown("---")
+st.markdown("<br>", unsafe_allow_html=True)
 
 sidebar_col, chat_col = st.columns([3, 7])
 
+# =======================================================================================
+# LEFT PANEL: DYNAMIC INTERACTIVE WHATSAPP-STYLE CLICKABLE CHAT RECENT LIST
+# =======================================================================================
 with sidebar_col:
-    st.markdown("#### 🔍 Search Contact Connection")
-    search_num = st.text_input("Enter Mobile Number Target:", max_chars=10, placeholder="9876543210").strip()
-    
-    if st.button("OPEN CHAT WINDOW", use_container_width=True, type="primary"):
-        if search_num == st.session_state["my_number"]:
-            st.error("You cannot start a chat with yourself!")
-        elif len(search_num) < 10 or not search_num.isdigit():
-            st.error("Enter a valid 10-digit number!")
-        else:
-            chk_exist = supabase.table("chat_users").select("id").eq("mobile_number", search_num).execute()
-            if chk_exist.data:
-                st.session_state["active_chat_with"] = search_num
-                st.success(f"Connected node: {search_num}")
-                st.rerun()
+    # ➕ Add New Chat Feature Trigger logo UI
+    with st.expander("💬 Add New Chat Connection", expanded=False):
+        search_num = st.text_input("Enter Mobile Number Target:", max_chars=10, placeholder="9876543210").strip()
+        if st.button("CONNECT FRESH STREAM", use_container_width=True, type="primary"):
+            if search_num == st.session_state["my_number"]:
+                st.error("You cannot chat with yourself!")
+            elif len(search_num) < 10 or not search_num.isdigit():
+                st.error("Enter a valid 10-digit number!")
             else:
-                st.error("❌ System Error: This number does not have an account on this messenger app!")
-
-    st.markdown("---")
-    if st.session_state["active_chat_with"]:
-        st.markdown(f"### 👤 Active Target Node:\n**{st.session_state['active_chat_with']}**")
+                chk_exist = supabase.table("chat_users").select("id").eq("mobile_number", search_num).execute()
+                if chk_exist.data:
+                    st.session_state["active_chat_with"] = search_num
+                    st.success("Chat stream generated!")
+                    st.rerun()
+                else:
+                    st.error("❌ Account not found on server pools!")
+                    
+    st.markdown("### 📱 Recent Transmissions")
+    
+    # Fetch list of numbers I have interacted with
+    my_num = st.session_state["my_number"]
+    interacted_res = supabase.table("chat_messages").select("sender_num, receiver_num").or_(
+        f"sender_num.eq.{my_num},receiver_num.eq.{my_num}"
+    ).execute()
+    
+    unique_contacts = set()
+    if interacted_res.data:
+        for row in interacted_res.data:
+            if row["sender_num"] != my_num: unique_contacts.add(row["sender_num"])
+            if row["receiver_num"] != my_num: unique_contacts.add(row["receiver_num"])
+            
+    # Dynamic Render Button Hub (NO MORE DROPDOWN!)
+    if unique_contacts:
+        for contact_number in sorted(list(unique_contacts)):
+            contact_name = user_map.get(contact_number, contact_number)
+            # Create a stylized button for each contact row chat channel slot
+            if st.button(f"👤 {contact_name}", key=f"contact_{contact_number}", use_container_width=True):
+                st.session_state["active_chat_with"] = contact_number
+                st.rerun()
     else:
-        st.info("Search a registered mobile number above to launch communication link.")
+        st.caption("No conversations recorded yet. Tap top icon to add new node link.")
 
+# =======================================================================================
+# RIGHT PANEL: DYNAMIC NAME DISPLAY CHAT BOX ENGINE
+# =======================================================================================
 with chat_col:
     if not st.session_state["active_chat_with"]:
-        st.info("👈 Please select or look up a valid target user number from the left bar to read/write logs.")
+        st.info("👈 Please tap a contact from the recent feed list to open the chat window dashboard.")
     else:
         target_person = st.session_state["active_chat_with"]
         my_person = st.session_state["my_number"]
         
-        # 🔵 SEEN STATE TRIGGER: Auto mark unread transmissions to True
+        # Display corresponding name instead of raw phone string digit array strings
+        target_display_name = user_map.get(target_person, target_person)
+        st.markdown(f"## 💬 {target_display_name}")
+        st.markdown("---")
+        
+        # Mark Incoming messages as Read 
         supabase.table("chat_messages").update({"is_seen": True}).eq("sender_num", target_person).eq("receiver_num", my_person).execute()
         
-        # FAIL-PROOF DATA FETCH SPLITTER
+        # Fetching conversation streams data matrices blocks
         res_sent = supabase.table("chat_messages").select("*").eq("sender_num", my_person).eq("receiver_num", target_person).execute()
         res_rcvd = supabase.table("chat_messages").select("*").eq("sender_num", target_person).eq("receiver_num", my_person).execute()
         
         combined_data = (res_sent.data or []) + (res_rcvd.data or [])
         combined_data = sorted(combined_data, key=lambda x: x['id'])
         
-        # Core Output Display Renderer Loop
         if combined_data:
             for m in combined_data:
                 is_me = m["sender_num"] == my_person
-                
-                # Check ticks status rules
                 status_tick = " 🔵 Seen" if (is_me and m["is_seen"]) else " ✓✓" if is_me else ""
                 time_and_status = f"{m['timestamp']}{status_tick}"
                 
@@ -260,4 +321,4 @@ with chat_col:
                     st.rerun()
 
 st.markdown("---")
-st.markdown("<p style='color:#888888; text-align:center; font-size:0.85em;'>Prince Encrypted Messenger Channel Node v2.0</p>", unsafe_allow_html=True)
+st.markdown("<p style='color:#888888; text-align:center; font-size:0.85em;'>Prince Encrypted Messenger Channel Node v3.0</p>", unsafe_allow_html=True)
