@@ -225,9 +225,11 @@ with chat_col:
         supabase.table("chat_messages").update({"is_seen": True}).eq("sender_num", target_person).eq("receiver_num", my_person).execute()
         
         # Fetching conversation streams
+                # --- Naya Updated Safe Code ---
         msg_feed = supabase.table("chat_messages").select("*").or_(
-            f"and(sender_num.eq.{my_person},receiver_num.eq.{target_person}),and(sender_num.eq.{target_person},receiver_num.eq.{my_person})"
-        ).order("id", ascending=True).execute()
+            f"and(sender_num.eq.{my_person},receiver_num.eq.{target_person}), and(sender_num.eq.{target_person},receiver_num.eq.{my_person})"
+        ).order("id").execute()
+
         
         # Rendering Chat Feed Block
         st.markdown('<div class="chat-container">', unsafe_allow_html=True)
