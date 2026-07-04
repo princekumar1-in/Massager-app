@@ -232,8 +232,47 @@ with chat_col:
 
         
         # Rendering Chat Feed Block
-        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-        chat_html_accumulator = ""
+                # =======================================================================================
+        # 📱 UPGRADED CLEAN CHAT FEED BLOCK (NO MORE CODE BOXES!)
+        # =======================================================================================
+        if msg_feed.data:
+            for m in msg_feed.data:
+                is_me = m["sender_num"] == my_person
+                
+                # Check status ticks only for my sent messages
+                status_tick = " 🔵 Seen" if (is_me and m["is_seen"]) else " ✓✓" if is_me else ""
+                time_and_status = f"{m['timestamp']}{status_tick}"
+                
+                # Media rendering agar photo ya video hai
+                if m["media_type"] == "photo":
+                    st.image(m["media_url"], width=250)
+                elif m["media_type"] == "video":
+                    st.video(m["media_url"])
+                
+                # Right side for my messages, Left side for incoming messages
+                if is_me:
+                    st.markdown(
+                        f"<div style='text-align: right; background-color: #d9fdd3; color: #111b21; "
+                        f"padding: 10px; border-radius: 10px 0px 10px 10px; margin-left: 30%; "
+                        f"margin-bottom: 10px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); word-wrap: break-word;'>"
+                        f"<p style='margin:0; font-size:1.05em;'>{m['message_text']}</p>"
+                        f"<small style='color: #667781; font-size:0.75em; display:block; margin-top:4px;'>{time_and_status}</small>"
+                        f"</div>", 
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        f"<div style='text-align: left; background-color: #ffffff; color: #111b21; "
+                        f"padding: 10px; border-radius: 0px 10px 10px 10px; margin-right: 30%; "
+                        f"margin-bottom: 10px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); word-wrap: break-word;'>"
+                        f"<p style='margin:0; font-size:1.05em;'>{m['message_text']}</p>"
+                        f"<small style='color: #667781; font-size:0.75em; display:block; margin-top:4px;'>{time_and_status}</small>"
+                        f"</div>", 
+                        unsafe_allow_html=True
+                    )
+        else:
+            st.info("👋 No previous transmission logs. Type a message below to start conversation.")
+
         
         if msg_feed.data:
             for m in msg_feed.data:
